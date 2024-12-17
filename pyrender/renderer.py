@@ -1006,11 +1006,12 @@ class Renderer(object):
     ###########################################################################
 
     def _configure_forward_pass_viewport(self, flags):
-
-        # If using offscreen render, bind main framebuffer
         if flags & RenderFlags.OFFSCREEN:
             self._configure_main_framebuffer()
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self._main_fb_ms)
+            if not bool(flags & RenderFlags.SEG):
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self._main_fb_ms)
+            else:
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self._main_fb)
         else:
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
@@ -1130,18 +1131,16 @@ class Renderer(object):
     def _read_main_framebuffer(self, scene, flags):
         width, height = self._main_fb_dims[0], self._main_fb_dims[1]
 
-        # Bind framebuffer and blit buffers
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, self._main_fb_ms)
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self._main_fb)
-        glBlitFramebuffer(
-            0, 0, width, height, 0, 0, width, height,
-            GL_COLOR_BUFFER_BIT, GL_LINEAR
-        )
-        glBlitFramebuffer(
-            0, 0, width, height, 0, 0, width, height,
-            GL_DEPTH_BUFFER_BIT, GL_NEAREST
-        )
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, self._main_fb)
+        if not bool(flags & RenderFlags.SEG):
+            # Bind framebuffer and blit buffers for multisample resolution
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, self._main_fb_ms)
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self._main_fb)
+            glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR)
+            glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, self._main_fb)
+        else:
+            # Segmentation mode: Read directly from the main framebuffer
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, self._main_fb)
 
         # Read depth
         depth_buf = glReadPixels(
